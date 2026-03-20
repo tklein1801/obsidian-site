@@ -1,0 +1,31 @@
+---
+import Layout from '../layouts/Layout.astro';
+import GraphView from '../components/GraphView';
+import { buildGraph } from '../lib/graph';
+import { getVaultIndex } from '../lib/vault';
+
+const index = getVaultIndex();
+const graph = buildGraph(index);
+---
+
+<Layout title="Graph View" currentSlug="__graph__">
+  <div class="flex flex-col h-full">
+    <!-- Header -->
+    <div class="px-6 py-4 border-b flex items-center justify-between" style="border-color:var(--border);">
+      <div>
+        <h1 class="text-lg font-semibold" style="color:var(--text-primary);">Knowledge Graph</h1>
+        <p class="text-sm mt-0.5" style="color:var(--text-muted);">
+          {graph.nodes.length} notes · {graph.edges.length} connections
+        </p>
+      </div>
+      <div class="text-xs px-2 py-1 rounded" style="background:var(--bg-tertiary);color:var(--text-faint);">
+        Click to open · hover for name
+      </div>
+    </div>
+
+    <!-- Full graph -->
+    <div class="flex-1 relative">
+      <GraphView client:load data={graph} compact={false} />
+    </div>
+  </div>
+</Layout>

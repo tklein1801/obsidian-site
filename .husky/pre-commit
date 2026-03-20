@@ -1,0 +1,3 @@
+# Skip in CI environments
+[ -n "$CI" ] && exit 0
+npx lint-staged

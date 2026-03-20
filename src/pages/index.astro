@@ -1,0 +1,128 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getVaultIndex, getBacklinks } from '../lib/vault';
+import { renderMarkdown } from '../lib/markdown';
+import GraphView from '../components/GraphView';
+import { buildGraph, getOutlinks } from '../lib/graph';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import * as LucideIcons from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+function lucideIcon(name: string, size = 12): string {
+  const toPascal = (s: string) =>
+    s.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
+  const Icon = (
+    (LucideIcons as unknown as Record<string, LucideIcon>)[toPascal(name)]
+    ?? LucideIcons.FileText
+  ) as React.ComponentType<{ width?: number; height?: number; strokeWidth?: number }>;
+  return renderToStaticMarkup(React.createElement(Icon, { width: size, height: size, strokeWidth: 1.6 }));
+}
+
+const index = getVaultIndex();
+const note  = index.notesBySlug.get('index');
+const html  = note
+  ? await renderMarkdown(note.rawContent, index, note.relativePath)
+  : '<p>No <code>index.md</code> found in vault.</p>';
+
+const backlinks = note ? getBacklinks('index', index) : [];
+const outlinks  = note ? getOutlinks(note, index) : [];
+const graph     = buildGraph(index);
+
+interface TocEntry { level: number; id: string; text: string }
+function extractTOC(src: string): TocEntry[] {
+  const items: TocEntry[] = [];
+  const re = /<h([2-4])[^>]*\sid="([^"]+)"[^>]*>([\s\S]*?)<\/h[2-4]>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) {
+    const text = m[3].replace(/<[^>]+>/g, '').trim();
+    if (text) items.push({ level: parseInt(m[1], 10), id: m[2], text });
+  }
+  return items;
+}
+const toc = note ? extractTOC(html) : [];
+---
+
+<Layout title={note?.title ?? 'Home'} currentSlug="index">
+  <div class="page-layout">
+
+    <!-- ── Content ─────────────────────────────────────────── -->
+    <article class="page-article">
+      <div class="page-inner">
+
+        <h1 class="page-title">{note?.title ?? 'Home'}</h1>
+
+        {note?.tags && note.tags.length > 0 && (
+          <div class="page-tags">
+            {note.tags.map(tag => (
+              <button class="tag-pill"
+                onclick={`document.dispatchEvent(new CustomEvent('open-search',{detail:{query:'#${tag}'}}))`}>
+                #{tag}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div class="prose" set:html={html} />
+
+        {outlinks.length > 0 && (
+          <div class="linked-notes">
+            <div class="linked-notes-heading">Linked notes</div>
+            <div class="linked-notes-grid">
+              {outlinks.map(link => (
+                <a href={`/${link.slug}`} class="linked-note-pill">
+                  <span style="opacity:0.45;flex-shrink:0;display:flex;">
+                    <Fragment set:html={lucideIcon(link.icon ?? (link.isCanvas ? 'layout-dashboard' : 'file-text'))} />
+                  </span>
+                  {link.title}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </article>
+
+    <!-- ── Right panel ─────────────────────────────────────── -->
+    <aside class="page-right">
+
+      <!-- Interactive Graph -->
+      <div class="right-panel-section">
+        <div class="right-panel-heading">Interactive Graph</div>
+        <div class="graph-mini-container">
+          <GraphView client:load data={graph} currentSlug="index" compact={true} />
+        </div>
+      </div>
+
+      <!-- On this page (TOC) -->
+      {toc.length > 0 && (
+        <div class="right-panel-section">
+          <div class="right-panel-heading">On this page</div>
+          <nav>
+            {toc.map(h => (
+              <a href={`#${h.id}`} class={`toc-item toc-h${h.level}`}>{h.text}</a>
+            ))}
+          </nav>
+        </div>
+      )}
+
+      <!-- Backlinks -->
+      {backlinks.length > 0 && (
+        <div class="right-panel-section">
+          <div class="right-panel-heading">Backlinks</div>
+          {backlinks.map(bl => (
+            <a href={bl.slug === 'index' ? '/' : `/${bl.slug}`} class="backlink-item">
+              <span style="opacity:0.4;flex-shrink:0;display:flex;">
+                <Fragment set:html={lucideIcon(bl.icon ?? (bl.isCanvas ? 'layout-dashboard' : 'file-text'), 11)} />
+              </span>
+              {bl.title}
+            </a>
+          ))}
+        </div>
+      )}
+
+    </aside>
+
+  </div>
+</Layout>

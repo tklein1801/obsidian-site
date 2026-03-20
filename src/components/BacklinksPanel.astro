@@ -1,0 +1,54 @@
+---
+import type { VaultFile } from '../lib/vault';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import * as LucideIcons from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+interface Props {
+  backlinks: VaultFile[];
+}
+
+const { backlinks } = Astro.props;
+
+function lucideIcon(name: string, size = 13): string {
+  const toPascal = (s: string) =>
+    s.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
+  const Icon = (
+    (LucideIcons as unknown as Record<string, LucideIcon>)[toPascal(name)]
+    ?? LucideIcons.FileText
+  ) as React.ComponentType<{ width?: number; height?: number; strokeWidth?: number }>;
+  return renderToStaticMarkup(React.createElement(Icon, { width: size, height: size, strokeWidth: 1.6 }));
+}
+---
+
+<div class="p-4">
+  <h3 class="text-xs font-semibold uppercase tracking-wider mb-3" style="color:var(--text-faint);">
+    Backlinks
+    {backlinks.length > 0 && (
+      <span class="ml-1 px-1.5 py-0.5 rounded text-xs" style="background:var(--bg-tertiary);color:var(--accent);">
+        {backlinks.length}
+      </span>
+    )}
+  </h3>
+
+  {backlinks.length === 0 ? (
+    <p class="text-xs" style="color:var(--text-faint);">No incoming links</p>
+  ) : (
+    <ul class="space-y-1">
+      {backlinks.map(note => (
+        <li>
+          <a
+            href={note.slug === 'index' ? '/' : `/${note.slug}`}
+            class="sidebar-item text-xs"
+          >
+            <span style="flex-shrink:0;opacity:0.5;">
+              <Fragment set:html={lucideIcon(note.icon ?? (note.isCanvas ? 'layout-dashboard' : 'file-text'))} />
+            </span>
+            <span class="truncate">{note.title}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+</div>

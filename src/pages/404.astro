@@ -1,0 +1,174 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="404 – Page not found">
+  <div class="not-found-page">
+
+    <div class="not-found-card">
+      <!-- Top accent line -->
+      <div class="not-found-accent-bar"></div>
+
+      <div class="not-found-body">
+        <!-- Number -->
+        <div class="not-found-number">404</div>
+
+        <!-- Divider -->
+        <div class="not-found-divider"></div>
+
+        <!-- Text -->
+        <h1 class="not-found-title">Page not found</h1>
+        <p class="not-found-desc">
+          The note you're looking for doesn't exist or has been moved.
+        </p>
+
+        <!-- Path pill -->
+        <code class="not-found-path" id="not-found-path">{Astro.url.pathname}</code>
+
+        <!-- Actions -->
+        <div class="not-found-actions">
+          <a href="/" class="btn-primary">
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v10h6v-5h2v5h6V10"/>
+            </svg>
+            Home
+          </a>
+          <button id="open-search-404" class="btn-secondary">
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+            </svg>
+            Search
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</Layout>
+
+<style>
+  .not-found-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80vh;
+    padding: 2rem 1rem;
+  }
+
+  .not-found-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: none;
+  }
+
+  .not-found-accent-bar {
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent) 0%, transparent 100%);
+  }
+
+  .not-found-body {
+    padding: 2.5rem 2rem 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0;
+  }
+
+  .not-found-number {
+    font-size: 5.5rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: var(--bg-hover);
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+  }
+
+  .not-found-divider {
+    width: 2.5rem;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 2px;
+    margin: 1.25rem 0;
+    opacity: 0.7;
+  }
+
+  .not-found-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 0.5rem;
+  }
+
+  .not-found-desc {
+    font-size: 0.875rem;
+    color: var(--text-faint);
+    line-height: 1.6;
+    margin: 0 0 1.25rem;
+    max-width: 28ch;
+  }
+
+  .not-found-path {
+    display: inline-block;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.72rem;
+    color: var(--text-faint);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.25rem 0.65rem;
+    margin-bottom: 1.75rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .not-found-actions {
+    display: flex;
+    gap: 0.75rem;
+    width: 100%;
+  }
+
+  .btn-primary, .btn-secondary {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: opacity 0.15s, border-color 0.15s;
+    border: 1px solid transparent;
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg-primary);
+  }
+  .btn-primary:hover { opacity: 0.85; }
+
+  .btn-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    border-color: var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--text-primary); }
+</style>
+
+<script>
+  document.getElementById('open-search-404')?.addEventListener('click', () => {
+    document.dispatchEvent(new CustomEvent('open-search', { detail: {} }));
+  });
+</script>
+
+

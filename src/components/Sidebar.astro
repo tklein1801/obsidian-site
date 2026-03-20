@@ -1,0 +1,218 @@
+---
+import { getVaultIndex } from '../lib/vault';
+import { siteConfig } from '../../vault.config';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import * as LucideIcons from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+interface Props { currentSlug?: string }
+const { currentSlug } = Astro.props;
+const index = getVaultIndex();
+
+function lucideIcon(name: string, size = 14): string {
+  const toPascal = (s: string) =>
+    s.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
+  const Icon = (
+    (LucideIcons as unknown as Record<string, LucideIcon>)[toPascal(name)]
+    ?? LucideIcons.FileText
+  );
+  return renderToStaticMarkup(
+    React.createElement(Icon as React.ComponentType<{ width?: number; height?: number; strokeWidth?: number }>,
+      { width: size, height: size, strokeWidth: 1.6 })
+  );
+}
+
+interface TreeNode {
+  name: string; slug?: string; title?: string;
+  isCanvas?: boolean; icon?: string;
+  children: Map<string, TreeNode>;
+}
+
+function resolveSlug(path: string): string | null {
+  if (!path) return null;
+  const n = path.replace(/^\//, '');
+  const f = index.files.find(f =>
+    f.relativePath === n || f.relativePath === n.replace(/\.md$/, '') + '.md');
+  return f?.slug ?? null;
+}
+
+const imprintSlug = resolveSlug(siteConfig.imprint ?? '');
+const privacySlug = resolveSlug(siteConfig.privacyNotice ?? '');
+const legalSlugs  = new Set([imprintSlug, privacySlug].filter(Boolean));
+const treeFiles   = index.files.filter(f => !legalSlugs.has(f.slug));
+
+// Resolve the home slug so we can pin it at the top of the tree
+const homeSlug = (() => {
+  const h = siteConfig.homeNote ?? 'index';
+  const f = index.files.find(f => f.slug === h || f.relativePath === h || f.relativePath === h + '.md');
+  return f?.slug ?? h;
+})();
+
+function buildTree(files: typeof index.files): TreeNode {
+  const root: TreeNode = { name: 'root', children: new Map() };
+  for (const f of files) {
+    if (!f.isMarkdown && !f.isCanvas) continue;
+    const parts = f.relativePath.replace(/\.(md|canvas)$/, '').split('/');
+    let node = root;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (!node.children.has(part))
+        node.children.set(part, { name: part, children: new Map() });
+      node = node.children.get(part)!;
+      if (i === parts.length - 1) {
+        node.slug = f.slug;
+        node.title = f.title;
+        node.isCanvas = f.isCanvas;
+        node.icon = f.icon;
+      }
+    }
+  }
+  return root;
+}
+
+const tree = buildTree(treeFiles);
+const totalNotes  = index.files.filter(f => f.isMarkdown).length;
+const totalCanvas = index.files.filter(f => f.isCanvas).length;
+
+// Indentation: 20px base + 16px per depth level
+function indent(depth: number): string { return `${20 + depth * 16}px`; }
+
+function renderTree(node: TreeNode, depth = 0): string {
+  const items: string[] = [];
+
+  const sorted = [...node.children.entries()].sort(([a, av], [b, bv]) => {
+    const aIsHome = av.slug === homeSlug;
+    const bIsHome = bv.slug === homeSlug;
+    if (aIsHome) return -1;
+    if (bIsHome) return 1;
+    const aIsFolder = av.children.size > 0;
+    const bIsFolder = bv.children.size > 0;
+    if (aIsFolder !== bIsFolder) return aIsFolder ? -1 : 1;
+    return a.localeCompare(b);
+  });
+
+  for (const [, child] of sorted) {
+    if (child.children.size > 0) {
+      // Folder
+      const chevron = lucideIcon('chevron-right', 13);
+      const children = renderTree(child, depth + 1);
+      items.push(`
+<details open class="sidebar-folder">
+  <summary class="sidebar-item"
+    style="padding-left:${indent(depth)};padding-right:12px;font-weight:500;">
+    <span class="folder-chevron" style="flex-shrink:0;opacity:0.5;transition:transform 0.15s;">${chevron}</span>
+    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;">${child.name}</span>
+  </summary>
+  <div>${children}</div>
+</details>`);
+    } else if (child.slug) {
+      // File
+      const isActive = child.slug === currentSlug;
+      const href = child.slug === 'index' ? '/' : `/${child.slug}`;
+      const fileIcon = child.isCanvas
+        ? lucideIcon('layout-dashboard', 13)
+        : lucideIcon(child.icon ?? 'file-text', 13);
+      const activeStyle = isActive
+        ? `color:var(--accent);border-left-color:var(--accent);`
+        : '';
+      items.push(`<a href="${href}"
+  class="sidebar-item${isActive ? ' active' : ''}"
+  style="padding-left:${indent(depth)};padding-right:12px;${activeStyle}">
+  <span style="flex-shrink:0;opacity:${isActive ? '0.9' : '0.45'};">${fileIcon}</span>
+  <span style="flex:1;overflow:hidden;text-overflow:ellipsis;">${child.title ?? child.name}</span>
+</a>`);
+    }
+  }
+  return items.join('\n');
+}
+
+const treeHtml = renderTree(tree);
+const isHome = !currentSlug || currentSlug === 'index';
+const isGraph = currentSlug === '__graph__';
+---
+
+<div class="sidebar" style="height:100%;display:flex;flex-direction:column;width:100%;">
+
+  <!-- Logo -->
+  <a href="/" class="sidebar-logo">
+    <div class="sidebar-logo-icon">
+      <svg width="13" height="13" viewBox="0 0 20 20" fill="white">
+        <path d="M10 2L3 7v11h14V7L10 2zm0 2.5 5 3.5v8H5V8l5-3.5z"/>
+      </svg>
+    </div>
+    <span class="sidebar-logo-name">{siteConfig.siteName}</span>
+  </a>
+
+  <!-- Stats -->
+  <div class="sidebar-stats">
+    {totalNotes} note{totalNotes !== 1 ? 's' : ''}{totalCanvas > 0 ? ` · ${totalCanvas} canvas` : ''}
+  </div>
+
+  <!-- Search -->
+  <button
+    id="search-btn"
+    data-search-trigger
+    aria-label="Search"
+    class="sidebar-search"
+    style="background:none;border:none;width:auto;text-align:left;"
+  >
+    <svg class="sidebar-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <span class="sidebar-search-placeholder">Search page or heading…</span>
+    <kbd class="sidebar-search-kbd">⌘K</kbd>
+  </button>
+
+  <!-- Navigation -->
+  <nav class="sidebar-nav">
+
+    <!-- Home -->
+    <a href="/"
+      class={`sidebar-item${isHome ? ' active' : ''}`}
+      style={`padding-left:20px;padding-right:12px;${isHome ? 'color:var(--accent);border-left-color:var(--accent);' : ''}`}>
+      <span style={`flex-shrink:0;opacity:${isHome ? '0.9' : '0.45'};`}>
+        <Fragment set:html={lucideIcon('house', 13)} />
+      </span>
+      <span>Home</span>
+    </a>
+
+    <!-- Graph View -->
+    <a href="/graph"
+      class={`sidebar-item${isGraph ? ' active' : ''}`}
+      style={`padding-left:20px;padding-right:12px;${isGraph ? 'color:var(--accent);border-left-color:var(--accent);' : ''}`}>
+      <span style={`flex-shrink:0;opacity:${isGraph ? '0.9' : '0.45'};`}>
+        <Fragment set:html={lucideIcon('network', 13)} />
+      </span>
+      <span>Graph View</span>
+    </a>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- File tree -->
+    <Fragment set:html={treeHtml} />
+
+  </nav>
+
+  <!-- Footer -->
+  {(imprintSlug || privacySlug) && (
+    <div class="sidebar-footer">
+      {imprintSlug && <a href={`/${imprintSlug}`}>Imprint</a>}
+      {privacySlug && <a href={`/${privacySlug}`}>Privacy</a>}
+    </div>
+  )}
+
+</div>
+
+<script>
+  // Animate folder chevrons on open/close
+  document.querySelectorAll<HTMLDetailsElement>('.sidebar-folder').forEach(details => {
+    const chevron = details.querySelector<HTMLElement>('.folder-chevron');
+    const update = () => {
+      if (chevron) chevron.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
+    };
+    update();
+    details.addEventListener('toggle', update);
+  });
+</script>

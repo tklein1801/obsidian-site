@@ -1,0 +1,199 @@
+{
+  "nodes": [
+    {
+      "id": "group-input",
+      "type": "group",
+      "x": -520, "y": -260,
+      "width": 280, "height": 480,
+      "label": "Input",
+      "color": "5"
+    },
+    {
+      "id": "group-pipeline",
+      "type": "group",
+      "x": -180, "y": -260,
+      "width": 300, "height": 480,
+      "label": "Build Pipeline",
+      "color": "2"
+    },
+    {
+      "id": "group-output",
+      "type": "group",
+      "x": 180, "y": -260,
+      "width": 260, "height": 480,
+      "label": "Output",
+      "color": "4"
+    },
+    {
+      "id": "n-vault",
+      "type": "text",
+      "x": -500, "y": -200,
+      "width": 240, "height": 80,
+      "text": "## 📁 Obsidian Vault\nMarkdown notes + Canvas files",
+      "color": "5"
+    },
+    {
+      "id": "n-config",
+      "type": "text",
+      "x": -500, "y": -80,
+      "width": 240, "height": 80,
+      "text": "## ⚙️ vault.config.ts\nSite name, colors, paths",
+      "color": "5"
+    },
+    {
+      "id": "n-index",
+      "type": "file",
+      "x": -500, "y": 40,
+      "width": 240, "height": 120,
+      "file": "index.md"
+    },
+    {
+      "id": "n-parser",
+      "type": "text",
+      "x": -160, "y": -200,
+      "width": 260, "height": 90,
+      "text": "## vault.ts\nScans files, builds slug/tag/backlink index",
+      "color": "2"
+    },
+    {
+      "id": "n-markdown",
+      "type": "text",
+      "x": -160, "y": -80,
+      "width": 260, "height": 90,
+      "text": "## markdown.ts\nObsidian syntax → HTML\nShiki highlighting",
+      "color": "2"
+    },
+    {
+      "id": "n-graph",
+      "type": "text",
+      "x": -160, "y": 40,
+      "width": 260, "height": 80,
+      "text": "## graph.ts\nBuilds link graph",
+      "color": "2"
+    },
+    {
+      "id": "n-search",
+      "type": "text",
+      "x": -160, "y": 150,
+      "width": 260, "height": 80,
+      "text": "## search.ts\nQuery parser + ranking",
+      "color": "2"
+    },
+    {
+      "id": "n-astro",
+      "type": "text",
+      "x": 200, "y": -200,
+      "width": 220, "height": 80,
+      "text": "## Astro SSG\nOne HTML page per note",
+      "color": "4"
+    },
+    {
+      "id": "n-react",
+      "type": "text",
+      "x": 200, "y": -90,
+      "width": 220, "height": 80,
+      "text": "## React Islands\nSearch · Graph · Canvas",
+      "color": "4"
+    },
+    {
+      "id": "n-dist",
+      "type": "text",
+      "x": 200, "y": 40,
+      "width": 220, "height": 80,
+      "text": "## 🌐 dist/\nStatic HTML + JS + CSS",
+      "color": "4"
+    },
+    {
+      "id": "n-deploy",
+      "type": "text",
+      "x": 200, "y": 150,
+      "width": 220, "height": 80,
+      "text": "## 🚀 Deploy\nNetlify · Vercel · CF Pages · nginx",
+      "color": "4"
+    },
+    {
+      "id": "n-docs-link",
+      "type": "file",
+      "x": 500, "y": -100,
+      "width": 240, "height": 160,
+      "file": "How to Develop/Project Structure.md"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "fromNode": "n-vault",    "fromSide": "right",
+      "toNode": "n-parser",     "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "e2",
+      "fromNode": "n-vault",    "fromSide": "right",
+      "toNode": "n-markdown",   "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "e3",
+      "fromNode": "n-vault",    "fromSide": "right",
+      "toNode": "n-graph",      "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "e4",
+      "fromNode": "n-config",   "fromSide": "right",
+      "toNode": "n-parser",     "toSide": "left",
+      "toEnd": "arrow",
+      "label": "configures"
+    },
+    {
+      "id": "e5",
+      "fromNode": "n-parser",   "fromSide": "right",
+      "toNode": "n-astro",      "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "e6",
+      "fromNode": "n-markdown", "fromSide": "right",
+      "toNode": "n-astro",      "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "e7",
+      "fromNode": "n-graph",    "fromSide": "right",
+      "toNode": "n-react",      "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "e8",
+      "fromNode": "n-search",   "fromSide": "right",
+      "toNode": "n-react",      "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "e9",
+      "fromNode": "n-astro",    "fromSide": "bottom",
+      "toNode": "n-dist",       "toSide": "top",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "e10",
+      "fromNode": "n-react",    "fromSide": "bottom",
+      "toNode": "n-dist",       "toSide": "top",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "e11",
+      "fromNode": "n-dist",     "fromSide": "bottom",
+      "toNode": "n-deploy",     "toSide": "top",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "e12",
+      "fromNode": "n-dist",     "fromSide": "right",
+      "toNode": "n-docs-link",  "toSide": "left",
+      "toEnd": "arrow",
+      "label": "see docs",
+      "color": "3"
+    }
+  ]
+}

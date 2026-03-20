@@ -1,0 +1,228 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getVaultIndex, getBacklinks } from '../lib/vault';
+import { renderMarkdown } from '../lib/markdown';
+import CanvasView from '../components/CanvasView';
+import GraphView from '../components/GraphView';
+import { buildGraph, getOutlinks } from '../lib/graph';
+import { parseCanvas } from '../lib/canvas';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import * as LucideIcons from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+function lucideIcon(name: string, size = 12): string {
+  const toPascal = (s: string) =>
+    s.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
+  const Icon = (
+    (LucideIcons as unknown as Record<string, LucideIcon>)[toPascal(name)]
+    ?? LucideIcons.FileText
+  ) as React.ComponentType<{ width?: number; height?: number; strokeWidth?: number }>;
+  return renderToStaticMarkup(React.createElement(Icon, { width: size, height: size, strokeWidth: 1.6 }));
+}
+
+export async function getStaticPaths() {
+  const { getVaultIndex } = await import('../lib/vault');
+  const index = getVaultIndex();
+  return [...index.notesBySlug.entries()]
+    .filter(([slug]) => slug !== 'index')
+    .map(([slug, note]) => ({ params: { slug }, props: { note } }));
+}
+
+const { note } = Astro.props;
+const index = getVaultIndex();
+const graph  = buildGraph(index);
+
+const html = note.isMarkdown
+  ? await renderMarkdown(note.rawContent, index, note.relativePath)
+  : '';
+
+const canvasData = note.isCanvas ? parseCanvas(note.rawContent) : null;
+
+const fileInfoMap: Record<string, { title: string; rawContent: string; slug: string }> = {};
+if (canvasData) {
+  for (const n of canvasData.nodes) {
+    if (n.type === 'file' && n.file) {
+      const target = index.files.find(f =>
+        f.relativePath === n.file || f.relativePath === (n.file ?? '').replace(/^\//, ''));
+      if (target)
+        fileInfoMap[n.file] = { title: target.title, rawContent: target.rawContent, slug: target.slug };
+    }
+  }
+}
+
+const backlinks = getBacklinks(note.slug, index);
+const outlinks  = note.isMarkdown ? getOutlinks(note, index) : [];
+
+interface TocEntry { level: number; id: string; text: string }
+function extractTOC(src: string): TocEntry[] {
+  const items: TocEntry[] = [];
+  const re = /<h([2-4])[^>]*\sid="([^"]+)"[^>]*>([\s\S]*?)<\/h[2-4]>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) {
+    const text = m[3].replace(/<[^>]+>/g, '').trim();
+    if (text) items.push({ level: parseInt(m[1], 10), id: m[2], text });
+  }
+  return items;
+}
+const toc = note.isMarkdown ? extractTOC(html) : [];
+
+const breadcrumbs = note.relativePath.replace(/\.(md|canvas)$/, '').split('/').slice(0, -1);
+const metaKeys = Object.keys(note.frontmatter).filter(k => !['title','tags','icon'].includes(k));
+---
+
+<Layout title={note.title} currentSlug={note.slug}>
+  <div class="page-layout">
+
+    <!-- ── Content ─────────────────────────────────────────── -->
+    <article class="page-article">
+      <div class="page-inner">
+
+        <!-- Breadcrumb -->
+        {breadcrumbs.length > 0 && (
+          <nav class="breadcrumb">
+            <a href="/" aria-label="Home">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                style="display:inline;vertical-align:-1px;">
+                <path d="M3 12l9-9 9 9M5 10v10h6v-5h2v5h6V10"/>
+              </svg>
+            </a>
+            {breadcrumbs.map(part => (
+              <>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-current">{part}</span>
+              </>
+            ))}
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-current">{note.title}</span>
+          </nav>
+        )}
+
+        <!-- Page title -->
+        <h1 class="page-title">{note.title}</h1>
+
+        <!-- Tags (below title) -->
+        {note.tags.length > 0 && (
+          <div class="page-tags">
+            {note.tags.map(tag => (
+              <button class="tag-pill"
+                onclick={`document.dispatchEvent(new CustomEvent('open-search',{detail:{query:'#${tag}'}}))`}>
+                #{tag}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <!-- Canvas notice -->
+        {note.isCanvas && (
+          <div class="canvas-banner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-5h2v2h-2zm0-8h2v6h-2z"/>
+            </svg>
+            <span><strong>Canvas</strong> — scroll to zoom · drag to pan</span>
+          </div>
+        )}
+
+        <!-- Markdown content -->
+        {note.isMarkdown && <div class="prose" set:html={html} />}
+
+        <!-- Canvas -->
+        {note.isCanvas && canvasData && (
+          <CanvasView client:only="react" data={canvasData} fileInfoMap={fileInfoMap} />
+        )}
+
+        <!-- Frontmatter metadata -->
+        {metaKeys.length > 0 && (
+          <div class="metadata-section">
+            <div class="metadata-heading">Properties</div>
+            <dl class="metadata-grid">
+              {Object.entries(note.frontmatter)
+                .filter(([k]) => !['title','tags','icon'].includes(k))
+                .map(([k, v]) => (
+                  <>
+                    <dt class="metadata-key">{k}</dt>
+                    <dd class="metadata-val">{String(v)}</dd>
+                  </>
+                ))}
+            </dl>
+          </div>
+        )}
+
+        <!-- Outlinks -->
+        {outlinks.length > 0 && (
+          <div class="linked-notes">
+            <div class="linked-notes-heading">Linked notes</div>
+            <div class="linked-notes-grid">
+              {outlinks.map(link => (
+                <a href={`/${link.slug}`} class="linked-note-pill">
+                  <span style="opacity:0.45;flex-shrink:0;display:flex;">
+                    <Fragment set:html={lucideIcon(link.icon ?? (link.isCanvas ? 'layout-dashboard' : 'file-text'))} />
+                  </span>
+                  {link.title}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </article>
+
+    <!-- ── Right panel ─────────────────────────────────────── -->
+    <aside class="page-right">
+
+      <!-- Interactive Graph -->
+      <div class="right-panel-section">
+        <div class="right-panel-heading">Interactive Graph</div>
+        <div class="graph-mini-container">
+          <GraphView client:load data={graph} currentSlug={note.slug} compact={true} />
+        </div>
+      </div>
+
+      <!-- On this page (TOC) -->
+      {toc.length > 0 && (
+        <div class="right-panel-section">
+          <div class="right-panel-heading">On this page</div>
+          <nav>
+            {toc.map(h => (
+              <a href={`#${h.id}`} class={`toc-item toc-h${h.level}`}>{h.text}</a>
+            ))}
+          </nav>
+        </div>
+      )}
+
+      <!-- Backlinks -->
+      {backlinks.length > 0 && (
+        <div class="right-panel-section">
+          <div class="right-panel-heading">Backlinks</div>
+          {backlinks.map(bl => (
+            <a href={bl.slug === 'index' ? '/' : `/${bl.slug}`} class="backlink-item">
+              <span style="opacity:0.4;flex-shrink:0;display:flex;">
+                <Fragment set:html={lucideIcon(bl.icon ?? (bl.isCanvas ? 'layout-dashboard' : 'file-text'), 11)} />
+              </span>
+              {bl.title}
+            </a>
+          ))}
+        </div>
+      )}
+
+      <!-- Tags -->
+      {note.tags.length > 0 && (
+        <div class="right-panel-section">
+          <div class="right-panel-heading">Tags</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;">
+            {note.tags.map(tag => (
+              <button class="tag-pill"
+                onclick={`document.dispatchEvent(new CustomEvent('open-search',{detail:{query:'#${tag}'}}))`}>
+                #{tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+    </aside>
+
+  </div>
+</Layout>
