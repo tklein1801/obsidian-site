@@ -33,7 +33,7 @@ Obsidian Site takes your Obsidian vault — a folder of Markdown files, Canvas b
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/OWNER/obsidian-site
+git clone https://github.com/tklein1801/obsidian-site
 cd obsidian-site
 
 # 2. Install dependencies

@@ -104,43 +104,103 @@ server {
 
 ## Docker — standalone vault hosting
 
-The easiest way to host your vault is the **standalone Dockerfile**. You don't need to clone this repository at all — just drop a single `Dockerfile` into your vault folder and you're done.
+The easiest way to host your vault is the **standalone Dockerfile**. You don't need to clone this repository at all — just drop a `Dockerfile` and a `vault.config.ts` into your vault folder and you're done.
 
 ### How it works
 
-A pre-built **builder image** (`ghcr.io/OWNER/obsidian-site:latest`) is published automatically on every release. It contains the Obsidian Site project with all dependencies pre-installed. Your Dockerfile only needs to copy your notes into that image and run the build.
+A pre-built **builder image** (`ghcr.io/tklein1801/obsidian-site:latest`) is published automatically on every release. It contains the Obsidian Site project with all dependencies pre-installed. Your Dockerfile only needs to copy your notes and configuration into that image and run the build.
 
-### 1. Get the example Dockerfile
-
-Copy `vault/Dockerfile` from this repository into the root of your vault:
+### 1. Project structure
 
 ```
 my-vault/
-├── Dockerfile          ← copied from this repo
-├── vault.config.ts     ← optional: your site configuration
+├── Dockerfile
+├── vault.config.ts     ← required: your site configuration
 ├── index.md
 ├── Getting Started.md
 └── Topics/
     └── ...
 ```
 
-### 2. Configure the image name
+### 2. Dockerfile
 
-Open the `Dockerfile` and replace `OWNER` with the GitHub username that hosts this project:
-
-```dockerfile
-FROM ghcr.io/OWNER/obsidian-site:latest AS builder
-```
-
-### 3. (Optional) Customise your site
-
-Create a `vault.config.ts` in your vault folder and uncomment the line in the Dockerfile:
+Use the following `Dockerfile` exactly as shown — this is the confirmed working version:
 
 ```dockerfile
-# COPY vault.config.ts /app/vault.config.ts
+FROM ghcr.io/tklein1801/obsidian-site:latest AS builder
+
+COPY . /app/vault/
+COPY vault.config.ts /app/vault.config.ts
+
+RUN cd /app && npm run build
+
+FROM nginx:stable-alpine AS runtime
+
+COPY --from=builder /app/docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
 ```
 
-See [[Customization]] for all available options.
+### 3. vault.config.ts
+
+You must provide a **complete** `vault.config.ts` — it replaces the default configuration inside the builder image. Use the following as your starting point and adjust to your needs:
+
+```typescript
+/**
+ * Obsidian Static Site – Configuration
+ *
+ * Adjust this file to match your vault and preferences.
+ */
+export const siteConfig = {
+  /** Site name (shown in browser title and sidebar) */
+  siteName: 'Obsidian Site',
+
+  /** Site description for SEO */
+  description: 'My personal knowledge repository',
+
+  /** Path to the Obsidian vault (relative to project root) */
+  vaultPath: './vault',
+
+  /** Default note used as the home page */
+  homeNote: 'index',
+
+  /** Language of the site */
+  lang: 'en',
+
+  /** Show the mini graph in the right panel */
+  showMiniGraph: true,
+
+  /** Show backlinks in the right panel */
+  showBacklinks: true,
+
+  /** Show frontmatter metadata at the bottom of a note */
+  showMetadata: true,
+
+  /** Dark-mode colour tokens – adjust as you like */
+  colors: {
+    bgPrimary: '#1e1e2e',
+    bgSecondary: '#181825',
+    bgTertiary: '#313244',
+    accent: '#89b4fa',
+    link: '#89dceb',
+  },
+
+  /**
+   * Legal pages – set to a vault-relative path (e.g. "legal/imprint.md").
+   * When defined, links appear at the bottom of the sidebar.
+   * Leave as empty string or omit to hide.
+   */
+  imprint: '',
+  privacyNotice: '',
+};
+```
+
+> [!warning] Provide the full config
+> The `vault.config.ts` you supply **replaces** the default inside the image. Always include all fields — do not provide a partial config.
+
+See [[Customization]] for a description of every available option.
 
 ### 4. Build the image
 
@@ -149,7 +209,7 @@ cd my-vault
 docker build -t my-docs .
 ```
 
-The build pulls the pre-built base image, copies your notes, generates the static site, and packages everything into a minimal `nginx:stable-alpine` image — typically in under 30 seconds.
+The build pulls the pre-built base image, copies your notes and config, generates the static site, and packages everything into a minimal `nginx:stable-alpine` image — typically in under 30 seconds.
 
 ### 5. Run the container
 
@@ -190,7 +250,7 @@ docker build -t my-docs . && docker compose up -d --no-deps docs
 Alternatively, clone this repository, place your notes in the `vault/` directory, then build with the included `Dockerfile`:
 
 ```bash
-git clone https://github.com/OWNER/obsidian-site
+git clone https://github.com/tklein1801/obsidian-site
 cd obsidian-site
 # copy your notes into vault/
 docker build -t my-docs .

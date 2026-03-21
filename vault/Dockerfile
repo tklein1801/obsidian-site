@@ -1,8 +1,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Obsidian Site — standalone vault Dockerfile
 #
-# Place this file in the root of your vault folder alongside your notes.
-# Then run:
+# Place this file in the root of your vault folder alongside your notes
+# and a vault.config.ts. Then run:
 #   docker build -t my-docs .
 #   docker run -p 8080:80 my-docs
 #
@@ -10,14 +10,13 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
-# Pull the pre-built Obsidian Site builder image (project + node_modules)
-FROM ghcr.io/OWNER/obsidian-site:latest AS builder
+FROM ghcr.io/tklein1801/obsidian-site:latest AS builder
 
 # Copy your vault notes into the builder
 COPY . /app/vault/
 
-# (Optional) Override the site configuration
-# COPY vault.config.ts /app/vault.config.ts
+# Copy your site configuration (full vault.config.ts required)
+COPY vault.config.ts /app/vault.config.ts
 
 # Build the static site → /app/dist
 RUN cd /app && npm run build

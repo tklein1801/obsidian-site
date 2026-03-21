@@ -6,7 +6,7 @@
 #   docker build -f Dockerfile.builder -t obsidian-site-builder .
 #
 # Published automatically to:
-#   ghcr.io/<owner>/obsidian-site:latest
+#   ghcr.io/tklein1801/obsidian-site:latest
 
 FROM node:22-alpine
 
