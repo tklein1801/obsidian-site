@@ -256,3 +256,78 @@ describe('getBacklinks – icon on linked notes', () => {
     expect(links[0].icon).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Canvas files in vault index
+// ---------------------------------------------------------------------------
+describe('canvas files in vault index', () => {
+  function makeCanvas(slug: string, title: string): VaultFile {
+    return {
+      slug,
+      title,
+      filePath: `/vault/${slug}.canvas`,
+      relativePath: `${slug}.canvas`,
+      isCanvas: true,
+      isMarkdown: false,
+      isImage: false,
+      frontmatter: {},
+      rawContent: '{"nodes":[],"edges":[]}',
+      tags: [],
+    };
+  }
+
+  it('canvas files appear in notesBySlug', () => {
+    const files = [makeCanvas('canvas/architecture', 'Architecture')];
+    const index = makeIndex(files);
+    expect(index.notesBySlug.has('canvas/architecture')).toBe(true);
+    expect(index.notesBySlug.get('canvas/architecture')?.isCanvas).toBe(true);
+  });
+
+  it('canvas files appear in notesByTitle', () => {
+    const files = [makeCanvas('canvas/architecture', 'Architecture')];
+    const index = makeIndex(files);
+    expect(index.notesByTitle.has('architecture')).toBe(true);
+  });
+
+  it('canvas files are resolved by resolveWikilink', () => {
+    const files = [makeCanvas('canvas/architecture', 'Architecture')];
+    const index = makeIndex(files);
+    expect(resolveWikilink('architecture', index)).toBe('/canvas/architecture');
+  });
+
+  it('canvas files are not included in search index', () => {
+    const files = [
+      makeFile({ slug: 'note', title: 'A Note' }),
+      makeCanvas('canvas/board', 'Board'),
+    ];
+    const index = makeIndex(files);
+    const entries = buildSearchIndex(index);
+    expect(entries.every(e => e.slug !== 'canvas/board')).toBe(true);
+    expect(entries).toHaveLength(1);
+  });
+
+  it('markdown files can link back to canvas files via getBacklinks', () => {
+    const canvasFile = makeCanvas('canvas/architecture', 'Architecture');
+    const markdownFile = makeFile({
+      slug: 'overview',
+      title: 'Overview',
+      rawContent: 'See [[Architecture]] for the big picture.',
+    });
+    const index = makeIndex([canvasFile, markdownFile]);
+    const links = getBacklinks('canvas/architecture', index);
+    expect(links).toHaveLength(1);
+    expect(links[0].slug).toBe('overview');
+  });
+
+  it('mixed index with markdown and canvas files counts correctly', () => {
+    const files = [
+      makeFile({ slug: 'note-a', title: 'Note A' }),
+      makeFile({ slug: 'note-b', title: 'Note B' }),
+      makeCanvas('canvas/diagram', 'Diagram'),
+    ];
+    const index = makeIndex(files);
+    expect(index.notesBySlug.size).toBe(3);
+    expect([...index.notesBySlug.values()].filter(f => f.isCanvas)).toHaveLength(1);
+    expect([...index.notesBySlug.values()].filter(f => f.isMarkdown)).toHaveLength(2);
+  });
+});

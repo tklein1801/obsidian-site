@@ -196,48 +196,68 @@ body {
 .sidebar-footer a:hover { color: var(--text-muted); }
 
 /* ─── Mobile header ─────────────────────────────────────── */
-.mobile-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.mobile-header-title {
-  flex: 1;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+@layer components {
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .mobile-header-title {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 /* ─── Page layout (content + right panel) ─────────────── */
 .page-layout {
   display: flex;
   align-items: flex-start;
-  min-height: 100%;
+  min-height: calc(100% - var(--footer-h, 0px));
+  position: relative;
+}
+
+/* Continuous vertical divider at the left edge of the right panel */
+.page-layout::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: var(--right-w);
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+
+@media (max-width: 1200px) {
+  .page-layout::after { display: none; }
 }
 
 .page-article {
   flex: 1;
   min-width: 0;
   padding: 3rem 3rem 4rem;
-  max-width: calc(100% - var(--right-w));
 }
 
 .page-inner {
-  max-width: 700px;
+  max-width: 720px;
+  margin-inline: auto;
+  width: 100%;
 }
 
 .page-right {
   width: var(--right-w);
   flex-shrink: 0;
-  padding: 2.5rem 1.75rem 3rem 0.5rem;
+  padding: 2.5rem 1.5rem 3rem 1rem;
   position: sticky;
   top: 0;
   max-height: 100vh;
@@ -246,13 +266,58 @@ body {
 
 @media (max-width: 1200px) {
   .page-right { display: none; }
-  .page-article { max-width: 100%; }
 }
 @media (max-width: 900px) {
-  .page-article { padding: 2rem 2rem 3rem; }
+  .page-article { padding: 2rem 1.5rem 3rem; }
 }
 @media (max-width: 640px) {
   .page-article { padding: 1.5rem 1.25rem 2rem; }
+}
+
+/* ─── Site footer ───────────────────────────────────────── */
+.footer-layout {
+  display: flex;
+}
+.footer-article {
+  flex: 1;
+  min-width: 0;
+}
+.footer-right-spacer {
+  width: var(--right-w);
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+}
+@media (max-width: 1200px) {
+  .footer-right-spacer { display: none; }
+}
+
+.site-footer {
+  padding: 0 3rem 2.5rem;
+}
+.site-footer-inner {
+  max-width: 720px;
+  margin-inline: auto;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.site-footer a {
+  color: var(--text-faint);
+  text-decoration: none;
+  transition: color 0.12s;
+}
+.site-footer a:hover { color: var(--text-muted); }
+.site-footer-sep { opacity: 0.3; }
+.site-footer-copy { margin-left: auto; opacity: 0.6; }
+
+/* Canvas full-width wrapper (outside .page-inner) */
+.page-canvas {
+  padding: 0 3rem 2rem;
 }
 
 /* ─── Right panel sections ─────────────────────────────── */
@@ -420,11 +485,12 @@ body {
 
 /* Tables */
 .prose table {
-  width: 100%; margin: 0 0 1.25rem;
+  display: block; width: fit-content; max-width: 100%; margin: 0 0 1.25rem;
   border-collapse: collapse; font-size: 13.5px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .prose th {
   padding: 8px 14px; text-align: left; font-weight: 600;

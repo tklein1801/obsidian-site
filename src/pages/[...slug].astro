@@ -127,10 +127,16 @@ const metaKeys = Object.keys(note.frontmatter).filter(k => !['title','tags','ico
         <!-- Markdown content -->
         {note.isMarkdown && <div class="prose" set:html={html} />}
 
-        <!-- Canvas -->
-        {note.isCanvas && canvasData && (
+      </div><!-- end .page-inner -->
+
+      <!-- Canvas — outside .page-inner so it takes full article width -->
+      {note.isCanvas && canvasData && (
+        <div class="page-canvas">
           <CanvasView client:only="react" data={canvasData} fileInfoMap={fileInfoMap} />
-        )}
+        </div>
+      )}
+
+      <div class="page-inner">
 
         <!-- Frontmatter metadata -->
         {metaKeys.length > 0 && (

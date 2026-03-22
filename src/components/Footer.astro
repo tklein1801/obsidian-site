@@ -1,0 +1,33 @@
+---
+import { siteConfig } from '../../vault.config';
+import { getVaultIndex } from '../lib/vault';
+
+const index = getVaultIndex();
+
+function resolveSlug(path: string): string | null {
+  if (!path) return null;
+  const n = path.replace(/^\//, '');
+  const f = index.files.find(f =>
+    f.relativePath === n || f.relativePath === n.replace(/\.md$/, '') + '.md');
+  return f?.slug ?? null;
+}
+
+const imprintSlug = resolveSlug(siteConfig.imprint ?? '');
+const privacySlug = resolveSlug(siteConfig.privacyNotice ?? '');
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    {imprintSlug && (
+      <a href={`/${imprintSlug}`}>Imprint</a>
+    )}
+    {imprintSlug && privacySlug && (
+      <span class="site-footer-sep">·</span>
+    )}
+    {privacySlug && (
+      <a href={`/${privacySlug}`}>Privacy</a>
+    )}
+    <span class="site-footer-copy">© {year} {siteConfig.siteName}</span>
+  </div>
+</footer>

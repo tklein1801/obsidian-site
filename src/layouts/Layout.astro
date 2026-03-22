@@ -72,14 +72,14 @@ const mermaidTheme = JSON.stringify({
   <!-- Left sidebar -->
   <aside id="sidebar"
     style="width:var(--sidebar-w);flex-shrink:0;height:100vh;overflow:hidden;position:relative;z-index:50;transition:transform 0.2s ease;"
-    class="hidden lg:block">
+    class="hidden xl:block">
     <Sidebar currentSlug={currentSlug} />
   </aside>
 
   <!-- Mobile sidebar (hidden by default) -->
   <aside id="sidebar-mobile"
     style="width:var(--sidebar-w);flex-shrink:0;height:100vh;overflow:hidden;position:fixed;left:0;top:0;z-index:50;transform:translateX(-100%);transition:transform 0.2s ease;"
-    class="lg:hidden">
+    class="xl:hidden">
     <Sidebar currentSlug={currentSlug} />
   </aside>
 
@@ -87,7 +87,7 @@ const mermaidTheme = JSON.stringify({
   <div style="flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;">
 
     <!-- Mobile header (hidden on desktop) -->
-    <header class="mobile-header lg:hidden">
+    <header class="mobile-header xl:hidden">
       <button onclick="openSidebar()"
         style="padding:6px;border-radius:6px;background:none;border:none;cursor:pointer;color:var(--text-muted);"
         aria-label="Open menu">
