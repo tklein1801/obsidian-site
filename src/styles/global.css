@@ -1,15 +1,13 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────
-   Design tokens — overridden at runtime by Layout.astro
+   Design tokens
+   Theme colours (--bg-primary, --bg-secondary, --bg-tertiary,
+   --accent, --link) are injected inline by Layout.astro from
+   vault.config.ts so users can customise them without touching
+   source files.
 ───────────────────────────────────────────────────────── */
 :root {
-  --bg-primary:   #1e1e1e;
-  --bg-secondary: #161616;
-  --bg-tertiary:  #2a2a2a;
-  --accent:       #7c3aed;
-  --link:         #8b6ef7;
-
   --bg-hover:       rgba(255,255,255,0.05);
   --text-primary:   #dcddde;
   --text-muted:     #999;
@@ -512,9 +510,14 @@ body {
   border-radius: var(--radius-sm);
   font-size: 0.83em;
   background: rgba(255,255,255,0.07);
-  color: #c792ea;
+  color: var(--accent);
   font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
   border: 1px solid var(--border);
+  transition: color 0.15s, background 0.15s;
+}
+.prose code:not(pre code):hover {
+  color: var(--link);
+  background: rgba(255,255,255,0.11);
 }
 
 /* Code blocks */
