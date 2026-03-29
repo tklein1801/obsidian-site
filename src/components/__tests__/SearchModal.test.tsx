@@ -5,7 +5,7 @@ import SearchModal from '../SearchModal';
 import type { SearchEntry } from '../../lib/vault';
 
 const sampleData: SearchEntry[] = [
-  { slug: 'react-hooks', title: 'React Hooks', tags: ['react', 'javascript'], content: 'useState useEffect', excerpt: '' },
+  { slug: 'react-hooks', title: 'React Hooks', tags: ['react', 'javascript'], icon: 'rocket', content: 'useState useEffect', excerpt: '' },
   { slug: 'python-basics', title: 'Python Basics', tags: ['python'], content: 'variables functions', excerpt: '' },
   { slug: 'typescript-guide', title: 'TypeScript Guide', tags: ['typescript'], content: 'interfaces generics', excerpt: '' },
 ];
@@ -120,6 +120,14 @@ describe('SearchModal', () => {
     render(<SearchModal searchData={sampleData} />);
     await openModal();
     await waitFor(() => expect(screen.getByText(/tag:name/)).toBeInTheDocument());
+  });
+
+  it('renders the configured page icon for a search result', async () => {
+    const user = userEvent.setup();
+    render(<SearchModal searchData={sampleData} />);
+    await openModal();
+    await user.type(screen.getByRole('textbox'), 'react');
+    await waitFor(() => expect(screen.getByTestId('search-icon-react-hooks')).toHaveAttribute('data-icon-name', 'rocket'));
   });
 
   it('filters results by tag: operator', async () => {

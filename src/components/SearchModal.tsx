@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { SearchEntry } from '../lib/vault';
+import * as LucideIcons from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
   parseQuery,
   filterEntry,
@@ -12,6 +14,18 @@ import {
 
 interface Props {
   searchData: SearchEntry[];
+}
+
+function toPascal(s: string): string {
+  return s
+    .split('-')
+    .map(p => p.charAt(0).toUpperCase() + p.slice(1))
+    .join('');
+}
+
+function getIconComponent(iconName?: string): LucideIcon {
+  if (!iconName) return LucideIcons.FileText;
+  return (LucideIcons as unknown as Record<string, LucideIcon>)[toPascal(iconName)] ?? LucideIcons.FileText;
 }
 
 // ---------------------------------------------------------------------------
@@ -185,9 +199,20 @@ export default function SearchModal({ searchData }: Props) {
                     onMouseEnter={() => setSelectedIdx(i)}
                   >
                     <div className="flex items-center gap-2 mb-0.5">
-                      <svg className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--accent)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" d="M9 12h6M9 16h4M4 20V4a1 1 0 011-1h10l5 5v12a1 1 0 01-1 1H5a1 1 0 01-1-1z" />
-                      </svg>
+                      {(() => {
+                        const Icon = getIconComponent(r.icon);
+                        return (
+                          <span
+                            className="flex-shrink-0"
+                            data-testid={`search-icon-${r.slug}`}
+                            data-icon-name={r.icon ?? 'file-text'}
+                            aria-hidden="true"
+                            style={{ color: 'var(--accent)' }}
+                          >
+                            <Icon size={16} strokeWidth={1.7} />
+                          </span>
+                        );
+                      })()}
                       <span
                         className="font-medium text-sm truncate"
                         style={{ color: 'var(--text-primary)' }}

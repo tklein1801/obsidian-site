@@ -1,11 +1,10 @@
-import { useMemo, useCallback, useRef, useState } from 'react';
+import { useMemo, useCallback } from 'react';
 import {
   ReactFlow,
   Background,
   MiniMap,
   useNodesState,
   useEdgesState,
-  useReactFlow,
   ReactFlowProvider,
   type Node,
   type Edge,
@@ -329,33 +328,6 @@ function toFlowEdge(e: CanvasEdge): Edge {
   };
 }
 
-// ── Custom controls overlay ──────────────────────────────────────────────────
-function CanvasControls() {
-  const { zoomIn, zoomOut, fitView, getZoom } = useReactFlow();
-  const [zoom, setZoom] = useState(100);
-
-  // Update zoom display periodically
-  const updateZoom = useCallback(() => {
-    setZoom(Math.round(getZoom() * 100));
-  }, [getZoom]);
-
-  return (
-    <div className="cnv-controls">
-      <button className="cnv-ctrl-btn" title="Zoom in"  onClick={() => { zoomIn();  setTimeout(updateZoom, 150); }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      </button>
-      <span className="cnv-ctrl-zoom">{zoom}%</span>
-      <button className="cnv-ctrl-btn" title="Zoom out" onClick={() => { zoomOut(); setTimeout(updateZoom, 150); }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      </button>
-      <div className="cnv-ctrl-sep" />
-      <button className="cnv-ctrl-btn" title="Fit view"  onClick={() => { fitView({ padding: 0.1, duration: 300 }); setTimeout(updateZoom, 400); }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-      </button>
-    </div>
-  );
-}
-
 // ── Scoped CSS ───────────────────────────────────────────────────────────────
 const CANVAS_CSS = `
   /* Handles — invisible in read-only mode */
@@ -517,40 +489,6 @@ const CANVAS_CSS = `
     pointer-events: all;
   }
 
-  /* ── Custom controls ── */
-  .cnv-controls {
-    position: absolute; bottom: 16px; left: 16px; z-index: 10;
-    display: flex; align-items: center;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-    overflow: hidden;
-  }
-  .cnv-ctrl-btn {
-    width: 32px; height: 32px;
-    display: flex; align-items: center; justify-content: center;
-    border: none; background: transparent;
-    cursor: pointer; color: var(--text-muted);
-    transition: background 0.1s, color 0.1s;
-    padding: 0;
-  }
-  .cnv-ctrl-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
-  .cnv-ctrl-btn svg { width: 14px; height: 14px; }
-  .cnv-ctrl-zoom {
-    font-size: 11px; font-weight: 600;
-    color: var(--text-muted);
-    padding: 0 6px;
-    min-width: 38px; text-align: center;
-    letter-spacing: 0.02em;
-    user-select: none;
-  }
-  .cnv-ctrl-sep {
-    width: 1px; height: 20px;
-    background: var(--border);
-    margin: 0 2px;
-  }
-
   /* ── MiniMap overrides ── */
   .react-flow__minimap {
     background: var(--bg-secondary) !important;
@@ -568,7 +506,59 @@ const CANVAS_CSS = `
 // ── Inner canvas (needs ReactFlowProvider context) ───────────────────────────
 function CanvasInner({ data, fileInfoMap }: { data: CanvasData; fileInfoMap: FileInfoMap }) {
   const initialNodes = useMemo(() => data.nodes.map(n => toFlowNode(n, fileInfoMap)), [data.nodes, fileInfoMap]);
-  const initialEdges = useMemo(() => data.edges.map(toFlowEdge), [data.edges]);
+
+  // Build canvas edges + auto-generated wikilink edges between file nodes
+  const initialEdges = useMemo(() => {
+    const canvasEdges = data.edges.map(toFlowEdge);
+
+    // Map slug → node id for file nodes present in this canvas
+    const slugToNodeId = new Map<string, string>();
+    for (const n of data.nodes) {
+      if (n.type === 'file' && n.file && fileInfoMap[n.file]) {
+        slugToNodeId.set(fileInfoMap[n.file].slug, n.id);
+      }
+    }
+
+    // Extract wikilinks from each file node's content and create dashed edges
+    const wikilinkEdgeSet = new Set<string>();
+    const wikilinkEdges: Edge[] = [];
+
+    for (const n of data.nodes) {
+      if (n.type !== 'file' || !n.file) continue;
+      const info = fileInfoMap[n.file];
+      if (!info) continue;
+
+      const re = /!?\[\[([^\]]+)\]\]/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(info.rawContent)) !== null) {
+        const [target] = m[1].split('|');
+        const clean = target.trim().split('#')[0].toLowerCase().replace(/\s+/g, '-');
+        for (const [slug, targetNodeId] of slugToNodeId) {
+          if (targetNodeId === n.id) continue;
+          if (slug === clean || slug.endsWith('/' + clean)) {
+            const edgeKey = `wikilink:${n.id}->${targetNodeId}`;
+            if (!wikilinkEdgeSet.has(edgeKey)) {
+              wikilinkEdgeSet.add(edgeKey);
+              wikilinkEdges.push({
+                id: edgeKey,
+                source: n.id,
+                target: targetNodeId,
+                type: 'default',
+                style: { stroke: 'var(--accent)', strokeWidth: 1.5, strokeDasharray: '5 4', opacity: 0.6 },
+                markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent)', width: 14, height: 14 },
+                animated: false,
+                focusable: false,
+                selectable: false,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return [...canvasEdges, ...wikilinkEdges];
+  }, [data.nodes, data.edges, fileInfoMap]);
+
   const [nodes, , onNodesChange] = useNodesState(initialNodes);
   const [edges, , onEdgesChange] = useEdgesState(initialEdges);
 
@@ -616,7 +606,6 @@ function CanvasInner({ data, fileInfoMap }: { data: CanvasData; fileInfoMap: Fil
           pannable
           zoomable
         />
-        <CanvasControls />
       </ReactFlow>
     </div>
   );

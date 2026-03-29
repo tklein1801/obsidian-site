@@ -40,7 +40,7 @@ function resolveSlug(path: string): string | null {
 const imprintSlug = resolveSlug(siteConfig.imprint ?? '');
 const privacySlug = resolveSlug(siteConfig.privacyNotice ?? '');
 const legalSlugs  = new Set([imprintSlug, privacySlug].filter(Boolean));
-const treeFiles   = index.files.filter(f => !legalSlugs.has(f.slug));
+const treeFiles   = index.files.filter(f => !legalSlugs.has(f.slug) && f.frontmatter.hidden !== true);
 
 // Resolve the home slug so we can pin it at the top of the tree
 const homeSlug = (() => {
@@ -75,10 +75,14 @@ const tree = buildTree(treeFiles);
 const totalNotes  = index.files.filter(f => f.isMarkdown).length;
 const totalCanvas = index.files.filter(f => f.isCanvas).length;
 
+function normalizeSlugSegment(segment: string): string {
+  return segment.toLowerCase().replace(/\s+/g, '-');
+}
+
 // Indentation: 20px base + 16px per depth level
 function indent(depth: number): string { return `${20 + depth * 16}px`; }
 
-function renderTree(node: TreeNode, depth = 0): string {
+function renderTree(node: TreeNode, depth = 0, pathSegments: string[] = []): string {
   const items: string[] = [];
 
   const sorted = [...node.children.entries()].sort(([a, av], [b, bv]) => {
@@ -94,11 +98,15 @@ function renderTree(node: TreeNode, depth = 0): string {
 
   for (const [, child] of sorted) {
     if (child.children.size > 0) {
-      // Folder
+      // Folder: only open if it is part of the active path
+      const folderSegments = [...pathSegments, child.name];
+      const folderPrefix = folderSegments.map(normalizeSlugSegment).join('/');
+      const isInActivePath = !!currentSlug && (currentSlug === folderPrefix || currentSlug.startsWith(folderPrefix + '/'));
+      const openAttr = isInActivePath ? ' open' : '';
       const chevron = lucideIcon('chevron-right', 13);
-      const children = renderTree(child, depth + 1);
+      const children = renderTree(child, depth + 1, folderSegments);
       items.push(`
-<details open class="sidebar-folder">
+<details${openAttr} class="sidebar-folder">
   <summary class="sidebar-item"
     style="padding-left:${indent(depth)};padding-right:12px;font-weight:500;">
     <span class="folder-chevron" style="flex-shrink:0;opacity:0.5;transition:transform 0.15s;">${chevron}</span>

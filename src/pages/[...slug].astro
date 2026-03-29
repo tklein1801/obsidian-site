@@ -25,7 +25,7 @@ export async function getStaticPaths() {
   const { getVaultIndex } = await import('../lib/vault');
   const index = getVaultIndex();
   return [...index.notesBySlug.entries()]
-    .filter(([slug]) => slug !== 'index')
+    .filter(([slug, note]) => slug !== 'index' && note.frontmatter.hidden !== true)
     .map(([slug, note]) => ({ params: { slug }, props: { note } }));
 }
 
@@ -45,7 +45,7 @@ if (canvasData) {
     if (n.type === 'file' && n.file) {
       const target = index.files.find(f =>
         f.relativePath === n.file || f.relativePath === (n.file ?? '').replace(/^\//, ''));
-      if (target)
+      if (target && target.frontmatter.hidden !== true)
         fileInfoMap[n.file] = { title: target.title, rawContent: target.rawContent, slug: target.slug };
     }
   }
@@ -100,7 +100,14 @@ const metaKeys = Object.keys(note.frontmatter).filter(k => !['title','tags','ico
         )}
 
         <!-- Page title -->
-        <h1 class="page-title">{note.title}</h1>
+        <h1 class="page-title">
+          {note.icon && (
+            <span class="page-title-icon" aria-hidden="true">
+              <Fragment set:html={lucideIcon(note.icon, 28)} />
+            </span>
+          )}
+          {note.title}
+        </h1>
 
         <!-- Tags (below title) -->
         {note.tags.length > 0 && (
@@ -111,16 +118,6 @@ const metaKeys = Object.keys(note.frontmatter).filter(k => !['title','tags','ico
                 #{tag}
               </button>
             ))}
-          </div>
-        )}
-
-        <!-- Canvas notice -->
-        {note.isCanvas && (
-          <div class="canvas-banner">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-5h2v2h-2zm0-8h2v6h-2z"/>
-            </svg>
-            <span><strong>Canvas</strong> — scroll to zoom · drag to pan</span>
           </div>
         )}
 

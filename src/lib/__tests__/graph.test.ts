@@ -161,4 +161,67 @@ describe('getOutlinks', () => {
     const index = makeIndex(files);
     expect(getOutlinks(files[0], index)).toHaveLength(1);
   });
+
+  it('excludes hidden targets from outlinks', () => {
+    const files = [
+      makeFile({ slug: 'a', title: 'A', rawContent: '[[b]] [[c]]' }),
+      makeFile({ slug: 'b', title: 'B' }),
+      makeFile({ slug: 'c', title: 'C', frontmatter: { hidden: true } }),
+    ];
+    const index = makeIndex(files);
+    const links = getOutlinks(files[0], index);
+    expect(links).toHaveLength(1);
+    expect(links[0].slug).toBe('b');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hidden frontmatter – buildGraph
+// ---------------------------------------------------------------------------
+describe('buildGraph – hidden filter', () => {
+  it('excludes nodes with hidden: true from the graph', () => {
+    const files = [
+      makeFile({ slug: 'visible', title: 'Visible' }),
+      makeFile({ slug: 'secret', title: 'Secret', frontmatter: { hidden: true } }),
+    ];
+    const index = makeIndex(files);
+    const result = buildGraph(index);
+    expect(result.nodes.map(n => n.id)).toContain('visible');
+    expect(result.nodes.map(n => n.id)).not.toContain('secret');
+  });
+
+  it('does not create edges from hidden source nodes', () => {
+    const files = [
+      makeFile({ slug: 'hidden-src', title: 'Hidden Source', frontmatter: { hidden: true }, rawContent: '[[target]]' }),
+      makeFile({ slug: 'target', title: 'Target' }),
+    ];
+    const index = makeIndex(files);
+    const result = buildGraph(index);
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('does not create edges to hidden target nodes', () => {
+    const files = [
+      makeFile({ slug: 'source', title: 'Source', rawContent: '[[hidden-target]]' }),
+      makeFile({ slug: 'hidden-target', title: 'Hidden Target', frontmatter: { hidden: true } }),
+    ];
+    const index = makeIndex(files);
+    const result = buildGraph(index);
+    // source node exists; but since hidden-target is not a node, no edge is drawn
+    expect(result.nodes.map(n => n.id)).toContain('source');
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('keeps non-hidden files unaffected', () => {
+    const files = [
+      makeFile({ slug: 'a', title: 'A', rawContent: '[[b]]' }),
+      makeFile({ slug: 'b', title: 'B' }),
+      makeFile({ slug: 'c', title: 'C', frontmatter: { hidden: true } }),
+    ];
+    const index = makeIndex(files);
+    const result = buildGraph(index);
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toEqual({ source: 'a', target: 'b' });
+  });
 });

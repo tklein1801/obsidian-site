@@ -1,8 +1,16 @@
 import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
+import { siteConfig } from '../../vault.config';
 
 export const VAULT_PATH = path.resolve('./vault');
+
+/** Returns true if any path segment matches an excluded folder name. */
+export function isExcludedPath(relativePath: string, excludedFolders: string[]): boolean {
+  if (!excludedFolders || excludedFolders.length === 0) return false;
+  const parts = relativePath.replace(/\\/g, '/').split('/');
+  return parts.some(part => excludedFolders.includes(part));
+}
 
 export interface VaultFile {
   slug: string;
@@ -40,15 +48,17 @@ function getTitle(filePath: string, frontmatter: Record<string, unknown>): strin
   return path.basename(filePath, path.extname(filePath));
 }
 
-function scanDir(dir: string, base: string, files: VaultFile[]): void {
+function scanDir(dir: string, base: string, files: VaultFile[], excludedFolders: string[] = []): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith('.') || entry.name === '_attachments') {
       if (entry.name !== '_attachments') continue;
     }
+    // Skip excluded folders
+    if (entry.isDirectory() && excludedFolders.includes(entry.name)) continue;
     const full = path.join(dir, entry.name);
     const rel = path.relative(base, full);
     if (entry.isDirectory()) {
-      scanDir(full, base, files);
+      scanDir(full, base, files, excludedFolders);
     } else {
       const ext = path.extname(entry.name).toLowerCase();
       if (ext === '.md') {
@@ -115,7 +125,7 @@ export function getVaultIndex(): VaultIndex {
   if (_cache) return _cache;
 
   const files: VaultFile[] = [];
-  scanDir(VAULT_PATH, VAULT_PATH, files);
+  scanDir(VAULT_PATH, VAULT_PATH, files, siteConfig.excludedFolders ?? []);
 
   const notesBySlug = new Map<string, VaultFile>();
   const notesByTitle = new Map<string, VaultFile>();
@@ -152,6 +162,7 @@ export function getBacklinks(slug: string, index: VaultIndex): VaultFile[] {
   const result: VaultFile[] = [];
   const target = index.notesBySlug.get(slug);
   if (!target) return result;
+  if (target.frontmatter.hidden === true) return result;
 
   const titleVariants = new Set([
     target.title.toLowerCase(),
@@ -161,6 +172,7 @@ export function getBacklinks(slug: string, index: VaultIndex): VaultFile[] {
 
   for (const f of index.files) {
     if (!f.isMarkdown || f.slug === slug) continue;
+    if (f.frontmatter.hidden === true) continue;
     const raw = f.rawContent.toLowerCase();
     for (const v of titleVariants) {
       if (raw.includes(`[[${v}`) || raw.includes(`[[${v.replace(/-/g, ' ')}`)) {
@@ -176,10 +188,12 @@ export function buildSearchIndex(index: VaultIndex): SearchEntry[] {
   const entries: SearchEntry[] = [];
   for (const f of index.files) {
     if (!f.isMarkdown) continue;
+    if (f.frontmatter.hidden === true) continue;
     entries.push({
       slug: f.slug,
       title: f.title,
       tags: f.tags,
+      icon: f.icon,
       content: f.rawContent.replace(/```[\s\S]*?```/g, '').replace(/[#*_~`>]/g, ''),
       excerpt: f.rawContent.slice(0, 300).replace(/[#*_~`>\[\]]/g, '').trim(),
     });
@@ -191,6 +205,7 @@ export interface SearchEntry {
   slug: string;
   title: string;
   tags: string[];
+  icon?: string;
   content: string;
   excerpt: string;
 }

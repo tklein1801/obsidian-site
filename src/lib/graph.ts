@@ -24,6 +24,7 @@ export function buildGraph(index: VaultIndex): GraphData {
 
   for (const f of index.files) {
     if (!f.isMarkdown) continue;
+    if (f.frontmatter.hidden === true) continue;
     nodes.push({
       id: f.slug,
       label: f.title,
@@ -34,12 +35,14 @@ export function buildGraph(index: VaultIndex): GraphData {
 
   for (const f of index.files) {
     if (!f.isMarkdown) continue;
+    if (f.frontmatter.hidden === true) continue;
     const re = /!?\[\[([^\]]+)\]\]/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(f.rawContent)) !== null) {
       const [target] = m[1].split('|');
       const clean = target.trim().split('#')[0].toLowerCase().replace(/\s+/g, '-');
-      for (const [slug] of index.notesBySlug) {
+      for (const [slug, targetFile] of index.notesBySlug) {
+        if (targetFile.frontmatter.hidden === true) continue;
         if (slug.endsWith(clean) || slug === clean) {
           const key = `${f.slug}->${slug}`;
           if (!edgeSet.has(key)) {
@@ -63,6 +66,7 @@ export function getOutlinks(f: VaultFile, index: VaultIndex): VaultFile[] {
     const [target] = m[1].split('|');
     const clean = target.trim().split('#')[0].toLowerCase().replace(/\s+/g, '-');
     for (const [slug, note] of index.notesBySlug) {
+      if (note.frontmatter.hidden === true) continue;
       if ((slug.endsWith(clean) || slug === clean) && !seen.has(slug)) {
         seen.add(slug);
         result.push(note);

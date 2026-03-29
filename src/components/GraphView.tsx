@@ -115,10 +115,15 @@ function useForceLayout(nodes: SimNode[], edges: SimEdge[], width: number, heigh
 }
 
 export default function GraphView({ data, currentSlug, compact = false }: Props) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ w: compact ? 280 : 800, h: compact ? 300 : 600 });
   const [hovered, setHovered] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; label: string } | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panDragRef = useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
 
   useEffect(() => {
     const el = containerRef.current?.parentElement;
@@ -130,6 +135,11 @@ export default function GraphView({ data, currentSlug, compact = false }: Props)
     ro.observe(el);
     return () => ro.disconnect();
   }, [compact]);
+
+  useEffect(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, [compact, data.nodes.length, data.edges.length]);
 
   const groupList = [...new Set(data.nodes.map(n => n.group ?? 'root'))];
   const groupColorMap = new Map(groupList.map((g, i) => [g, GROUP_COLORS[i % GROUP_COLORS.length]]));
@@ -167,76 +177,147 @@ export default function GraphView({ data, currentSlug, compact = false }: Props)
     window.location.href = id === 'index' ? '/' : `/${id}`;
   }, []);
 
+  const clampZoom = useCallback((value: number) => Math.max(0.35, Math.min(3.2, value)), []);
+
+  const zoomAt = useCallback((factor: number, cx: number, cy: number) => {
+    setZoom(prevZoom => {
+      const nextZoom = clampZoom(prevZoom * factor);
+      if (nextZoom === prevZoom) return prevZoom;
+
+      setPan(prevPan => {
+        const worldX = (cx - prevPan.x) / prevZoom;
+        const worldY = (cy - prevPan.y) / prevZoom;
+        return {
+          x: cx - worldX * nextZoom,
+          y: cy - worldY * nextZoom,
+        };
+      });
+
+      return nextZoom;
+    });
+  }, [clampZoom]);
+
+  const resetView = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    const svg = containerRef.current;
+    if (!wrapper || !svg) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const rect = svg.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const factor = e.deltaY < 0 ? 1.12 : 0.89;
+      zoomAt(factor, cx, cy);
+    };
+
+    wrapper.addEventListener('wheel', onWheel, { passive: false });
+    return () => wrapper.removeEventListener('wheel', onWheel);
+  }, [zoomAt]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return;
+    const target = e.target as Element;
+    if (target.closest('.graph-node')) return;
+    panDragRef.current = { active: true, x: e.clientX, y: e.clientY };
+    setIsPanning(true);
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!panDragRef.current.active) return;
+    const dx = e.clientX - panDragRef.current.x;
+    const dy = e.clientY - panDragRef.current.y;
+    panDragRef.current = { active: true, x: e.clientX, y: e.clientY };
+    setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+  }, []);
+
+  const endPan = useCallback(() => {
+    panDragRef.current.active = false;
+    setIsPanning(false);
+  }, []);
+
   return (
-    <div style={{ width: '100%', height: compact ? 300 : '100%', position: 'relative', background: 'var(--bg-secondary)', borderRadius: compact ? '0.5rem' : 0 }}>
+    <div ref={wrapperRef} style={{ width: '100%', height: compact ? 300 : '100%', position: 'relative', background: 'var(--bg-secondary)', borderRadius: compact ? '0.5rem' : 0, overscrollBehavior: 'contain' }}>
       <svg
         ref={containerRef}
         width="100%"
         height={compact ? 300 : size.h}
-        viewBox={compact
-          ? `${size.w * 0.2} ${size.h * 0.35} ${size.w * 0.6} ${size.h * 0.7}`
-          : `0 0 ${size.w} ${size.h}`}
+        viewBox={`0 0 ${size.w} ${size.h}`}
         preserveAspectRatio="xMidYMid meet"
-        style={{ display: 'block' }}
+        style={{ display: 'block', cursor: isPanning ? 'grabbing' : 'grab' }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={endPan}
+        onMouseLeave={endPan}
+        data-testid={compact ? 'graph-view-compact' : 'graph-view-full'}
       >
-        {/* Edges */}
-        {data.edges.map((e, i) => {
-          const s = positions.get(e.source);
-          const t = positions.get(e.target);
-          if (!s || !t) return null;
-          const isHighlighted = hovered === e.source || hovered === e.target;
-          return (
-            <line
-              key={i}
-              x1={s.x} y1={s.y} x2={t.x} y2={t.y}
-              stroke={isHighlighted ? 'var(--accent)' : 'var(--border)'}
-              strokeWidth={isHighlighted ? 1.5 : 1}
-              strokeOpacity={isHighlighted ? 0.8 : 0.4}
-            />
-          );
-        })}
-
-        {/* Nodes */}
-        {data.nodes.map(n => {
-          const pos = positions.get(n.id);
-          if (!pos) return null;
-          const color = groupColorMap.get(n.group ?? 'root') ?? '#89b4fa';
-          const isCurrent = n.id === currentSlug;
-          const isHovered = hovered === n.id;
-          const r = nodeRadius(n.id, isCurrent);
-          const displayR = isHovered ? r * 1.25 : r;
-
-          return (
-            <g
-              key={n.id}
-              className="graph-node"
-              transform={`translate(${pos.x},${pos.y})`}
-              style={{ cursor: 'pointer' }}
-              onClick={() => handleNodeClick(n.id)}
-              onMouseEnter={() => { setHovered(n.id); setTooltip({ x: pos.x, y: pos.y, label: n.label }); }}
-              onMouseLeave={() => { setHovered(null); setTooltip(null); }}
-            >
-              <circle
-                r={displayR}
-                fill={isCurrent ? 'white' : color}
-                stroke={isCurrent ? color : 'var(--bg-secondary)'}
-                strokeWidth={isCurrent ? 3 : 1.5}
-                style={{ transition: 'r 0.15s' }}
+        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
+          {/* Edges */}
+          {data.edges.map((e, i) => {
+            const s = positions.get(e.source);
+            const t = positions.get(e.target);
+            if (!s || !t) return null;
+            const isHighlighted = hovered === e.source || hovered === e.target;
+            return (
+              <line
+                key={i}
+                x1={s.x} y1={s.y} x2={t.x} y2={t.y}
+                stroke={isHighlighted ? 'var(--accent)' : 'var(--border)'}
+                strokeWidth={isHighlighted ? 1.5 : 1}
+                strokeOpacity={isHighlighted ? 0.8 : 0.4}
               />
-              {(isHovered || isCurrent || (!compact && r >= 8)) && (
-                <text
-                  y={displayR + 12}
-                  textAnchor="middle"
-                  fontSize={10}
-                  fill={isCurrent ? 'white' : 'var(--text-muted)'}
-                  style={{ pointerEvents: 'none' }}
-                >
-                  {n.label.length > 18 ? n.label.slice(0, 16) + '…' : n.label}
-                </text>
-              )}
-            </g>
-          );
-        })}
+            );
+          })}
+
+          {/* Nodes */}
+          {data.nodes.map(n => {
+            const pos = positions.get(n.id);
+            if (!pos) return null;
+            const color = groupColorMap.get(n.group ?? 'root') ?? '#89b4fa';
+            const isCurrent = n.id === currentSlug;
+            const isHovered = hovered === n.id;
+            const r = nodeRadius(n.id, isCurrent);
+            const displayR = isHovered ? r * 1.25 : r;
+
+            return (
+              <g
+                key={n.id}
+                className="graph-node"
+                transform={`translate(${pos.x},${pos.y})`}
+                style={{ cursor: 'pointer' }}
+                onClick={() => handleNodeClick(n.id)}
+                onMouseEnter={() => { setHovered(n.id); setTooltip({ x: pos.x, y: pos.y, label: n.label }); }}
+                onMouseLeave={() => { setHovered(null); setTooltip(null); }}
+              >
+                <circle
+                  r={displayR}
+                  fill={isCurrent ? 'white' : color}
+                  stroke={isCurrent ? color : 'var(--bg-secondary)'}
+                  strokeWidth={isCurrent ? 3 : 1.5}
+                  style={{ transition: 'r 0.15s' }}
+                />
+                {(isHovered || isCurrent || (!compact && r >= 8)) && (
+                  <text
+                    y={displayR + 12}
+                    textAnchor="middle"
+                    fontSize={10}
+                    fill={isCurrent ? 'white' : 'var(--text-muted)'}
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    {n.label.length > 18 ? n.label.slice(0, 16) + '…' : n.label}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </g>
       </svg>
 
       {/* Tooltip */}
@@ -244,8 +325,8 @@ export default function GraphView({ data, currentSlug, compact = false }: Props)
         <div
           style={{
             position: 'absolute',
-            left: tooltip.x + 16,
-            top: tooltip.y - 20,
+            left: tooltip.x * zoom + pan.x + 16,
+            top: tooltip.y * zoom + pan.y - 20,
             background: 'var(--bg-tertiary)',
             border: '1px solid var(--border)',
             borderRadius: '0.375rem',
@@ -260,15 +341,49 @@ export default function GraphView({ data, currentSlug, compact = false }: Props)
         </div>
       )}
 
-      {/* Legend */}
-      {!compact && groupList.length > 1 && (
-        <div style={{ position: 'absolute', bottom: 16, left: 16, display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-          {groupList.map((g, i) => (
-            <div key={g} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.75rem', color: 'var(--text-faint)' }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: GROUP_COLORS[i % GROUP_COLORS.length] }} />
-              {g === 'root' ? 'Root' : g}
-            </div>
-          ))}
+      {!compact && (
+        <div
+          style={{
+            position: 'absolute',
+            right: 16,
+            bottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: 6,
+            background: 'var(--bg-tertiary)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+          }}
+          data-testid="graph-zoom-controls"
+        >
+          <button
+            type="button"
+            onClick={() => zoomAt(1.2, size.w / 2, size.h / 2)}
+            aria-label="Zoom in"
+            style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid var(--border)', color: 'var(--text-primary)', cursor: 'pointer' }}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => zoomAt(0.84, size.w / 2, size.h / 2)}
+            aria-label="Zoom out"
+            style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid var(--border)', color: 'var(--text-primary)', cursor: 'pointer' }}
+          >
+            -
+          </button>
+          <button
+            type="button"
+            onClick={resetView}
+            aria-label="Reset view"
+            style={{ height: 26, padding: '0 8px', borderRadius: 6, border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 12, cursor: 'pointer' }}
+          >
+            Reset
+          </button>
+          <span style={{ fontSize: 11, color: 'var(--text-faint)', minWidth: 48, textAlign: 'right' }}>
+            {Math.round(zoom * 100)}%
+          </span>
         </div>
       )}
     </div>

@@ -44,4 +44,11 @@ export const siteConfig = {
    */
   imprint: 'Legal/Imprint.md',
   privacyNotice: '',
+
+  /**
+   * Folder names to exclude from parsing entirely.
+   * Files inside these folders will not appear in the sidebar, canvas, graph, or search.
+   * E.g. ['assets', 'attachments', 'templates']
+   */
+  excludedFolders: ['_templates'] as string[],
 };

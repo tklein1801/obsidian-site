@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveWikilink, getBacklinks, buildSearchIndex, formatDate } from '../vault';
+import { resolveWikilink, getBacklinks, buildSearchIndex, formatDate, isExcludedPath } from '../vault';
 import type { VaultIndex, VaultFile } from '../vault';
 
 function makeFile(overrides: Partial<VaultFile> & { slug: string; title: string }): VaultFile {
@@ -111,6 +111,27 @@ describe('getBacklinks', () => {
     const index = makeIndex(files);
     const links = getBacklinks('c', index);
     expect(links).toHaveLength(2);
+  });
+
+  it('excludes hidden source notes from backlinks', () => {
+    const files = [
+      makeFile({ slug: 'visible', title: 'Visible', rawContent: '[[target]]' }),
+      makeFile({ slug: 'hidden', title: 'Hidden', rawContent: '[[target]]', frontmatter: { hidden: true } }),
+      makeFile({ slug: 'target', title: 'Target' }),
+    ];
+    const index = makeIndex(files);
+    const links = getBacklinks('target', index);
+    expect(links).toHaveLength(1);
+    expect(links[0].slug).toBe('visible');
+  });
+
+  it('returns no backlinks for hidden target notes', () => {
+    const files = [
+      makeFile({ slug: 'source', title: 'Source', rawContent: '[[target]]' }),
+      makeFile({ slug: 'target', title: 'Target', frontmatter: { hidden: true } }),
+    ];
+    const index = makeIndex(files);
+    expect(getBacklinks('target', index)).toEqual([]);
   });
 });
 
@@ -329,5 +350,74 @@ describe('canvas files in vault index', () => {
     expect(index.notesBySlug.size).toBe(3);
     expect([...index.notesBySlug.values()].filter(f => f.isCanvas)).toHaveLength(1);
     expect([...index.notesBySlug.values()].filter(f => f.isMarkdown)).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hidden frontmatter – buildSearchIndex
+// ---------------------------------------------------------------------------
+describe('buildSearchIndex – hidden filter', () => {
+  it('excludes files with hidden: true from the search index', () => {
+    const files = [
+      makeFile({ slug: 'visible', title: 'Visible' }),
+      makeFile({ slug: 'secret', title: 'Secret', frontmatter: { hidden: true } }),
+    ];
+    const index = makeIndex(files);
+    const entries = buildSearchIndex(index);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].slug).toBe('visible');
+  });
+
+  it('includes files where hidden is false or absent', () => {
+    const files = [
+      makeFile({ slug: 'a', title: 'A' }),
+      makeFile({ slug: 'b', title: 'B', frontmatter: { hidden: false } }),
+    ];
+    const index = makeIndex(files);
+    expect(buildSearchIndex(index)).toHaveLength(2);
+  });
+
+  it('still resolves hidden files via wikilinks (they stay in the index)', () => {
+    const files = [
+      makeFile({ slug: 'secret', title: 'Secret', frontmatter: { hidden: true } }),
+    ];
+    const index = makeIndex(files);
+    // Hidden files remain in notesBySlug for internal link resolution
+    expect(resolveWikilink('secret', index)).toBe('/secret');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isExcludedPath
+// ---------------------------------------------------------------------------
+describe('isExcludedPath', () => {
+  it('returns false for empty excludedFolders', () => {
+    expect(isExcludedPath('assets/image.png', [])).toBe(false);
+  });
+
+  it('returns true when a path segment matches an excluded folder', () => {
+    expect(isExcludedPath('assets/photo.png', ['assets'])).toBe(true);
+  });
+
+  it('returns true for nested excluded folder', () => {
+    expect(isExcludedPath('folder/attachments/file.md', ['attachments'])).toBe(true);
+  });
+
+  it('returns false when no segment matches', () => {
+    expect(isExcludedPath('notes/concepts/zettelkasten.md', ['assets', 'attachments'])).toBe(false);
+  });
+
+  it('handles Windows-style backslash paths', () => {
+    expect(isExcludedPath('assets\\image.png', ['assets'])).toBe(true);
+  });
+
+  it('is case-sensitive', () => {
+    expect(isExcludedPath('Assets/image.png', ['assets'])).toBe(false);
+    expect(isExcludedPath('assets/image.png', ['Assets'])).toBe(false);
+  });
+
+  it('does not match partial folder names', () => {
+    // "asset" should not match folder named "assets"
+    expect(isExcludedPath('assets/file.md', ['asset'])).toBe(false);
   });
 });
